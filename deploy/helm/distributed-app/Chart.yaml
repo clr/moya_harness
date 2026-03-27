@@ -1,0 +1,6 @@
+apiVersion: v2
+name: distributed-app
+description: Starter Helm chart for a distributed containerized application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

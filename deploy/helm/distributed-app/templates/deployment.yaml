@@ -1,0 +1,49 @@
+{{- range $w := .Values.workloads }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "distributed-app.workloadFullname" (dict "root" $ "workload" $w) }}
+  labels:
+{{ include "distributed-app.labels" (dict "root" $ "workload" $w) | indent 4 }}
+spec:
+  replicas: {{ $w.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: {{ $w.name }}
+  template:
+    metadata:
+      labels:
+{{ include "distributed-app.labels" (dict "root" $ "workload" $w) | indent 8 }}
+    spec:
+      {{- if $.Values.global.imagePullSecrets }}
+      imagePullSecrets:
+{{ toYaml $.Values.global.imagePullSecrets | indent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $w.name }}
+          image: "{{ $w.image.repository }}:{{ $w.image.tag }}"
+          imagePullPolicy: {{ $w.image.pullPolicy }}
+          ports:
+            - containerPort: {{ $w.containerPort }}
+          env:
+            - name: APP_ENV
+              value: {{ $.Values.global.environment | quote }}
+            {{- range $k, $v := $w.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ $w.containerPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: {{ $w.containerPort }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+{{ toYaml $w.resources | indent 12 }}
+---
+{{- end }}

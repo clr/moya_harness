@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  api:
+    image: ghcr.io/your-org/api:latest
+    container_name: app-api
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      APP_ENV: dev
+      PORT: "8080"
+      DATABASE_URL: postgres://app:app@postgres:5432/app
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  worker:
+    image: ghcr.io/your-org/worker:latest
+    container_name: app-worker
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      APP_ENV: dev
+      DATABASE_URL: postgres://app:app@postgres:5432/app
+      REDIS_URL: redis://redis:6379/0
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: app-postgres
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7
+    container_name: app-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

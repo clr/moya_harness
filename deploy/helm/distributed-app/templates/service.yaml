@@ -1,0 +1,21 @@
+{{- range $w := .Values.workloads }}
+{{- if $w.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "distributed-app.workloadFullname" (dict "root" $ "workload" $w) }}
+  labels:
+{{ include "distributed-app.labels" (dict "root" $ "workload" $w) | indent 4 }}
+spec:
+  type: {{ $w.service.type }}
+  selector:
+    app.kubernetes.io/instance: {{ $.Release.Name }}
+    app.kubernetes.io/component: {{ $w.name }}
+  ports:
+    - name: http
+      port: {{ $w.service.port }}
+      targetPort: {{ $w.service.targetPort }}
+      protocol: TCP
+---
+{{- end }}
+{{- end }}
