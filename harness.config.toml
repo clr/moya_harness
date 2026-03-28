@@ -1,0 +1,30 @@
+# Harness-wide defaults for local cluster launches.
+#
+# Precedence (low -> high):
+# 1) script defaults
+# 2) this file
+# 3) environment variables
+# 4) CLI flags
+
+[cluster]
+network_name = "moya_net"
+
+[moya_db]
+node_count = 1
+base_port = 9000
+image = "moya_db:latest"
+
+[moya_squeezer]
+manager_name = "manager"
+worker_count = 3
+cookie = "squeeze_cookie"
+config_template_path = "config/docker.toml"
+config_effective_path = "config/generated/docker.effective.toml"
+
+[squeeze]
+# Optional runtime overrides written into the effective squeezer config.
+start_requests_per_second = 500000
+rps_step = 50000
+# requests_per_second = 500
+# duration_seconds = 30
+# warmup_seconds = 10
