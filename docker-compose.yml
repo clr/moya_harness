@@ -1,52 +1,70 @@
-version: "3.9"
-
 services:
-  api:
-    image: ghcr.io/your-org/api:latest
-    container_name: app-api
-    depends_on:
-      - postgres
-      - redis
-    environment:
-      APP_ENV: dev
-      PORT: "8080"
-      DATABASE_URL: postgres://app:app@postgres:5432/app
-      REDIS_URL: redis://redis:6379/0
+  moya_db:
+    build:
+      context: ${DB_REPO:-../moya_db}
+    image: ${DB_IMAGE:-moya_db:latest}
+    container_name: moya_db
     ports:
-      - "8080:8080"
-    restart: unless-stopped
+      - "9000:9000"
 
-  worker:
-    image: ghcr.io/your-org/worker:latest
-    container_name: app-worker
+  manager:
+    build:
+      context: ${SQUEEZER_REPO:-../moya_squeezer}
+      args:
+        BASE_IMAGE: ${BASE_IMAGE:-elixir:1.19.0}
+    image: ${SQUEEZER_IMAGE:-moya_squeezer:latest}
+    container_name: manager
+    hostname: manager
     depends_on:
-      - postgres
-      - redis
-    environment:
-      APP_ENV: dev
-      DATABASE_URL: postgres://app:app@postgres:5432/app
-      REDIS_URL: redis://redis:6379/0
-    restart: unless-stopped
-
-  postgres:
-    image: postgres:16
-    container_name: app-postgres
-    environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
-      POSTGRES_DB: app
+      - moya_db
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    restart: unless-stopped
+      - ${SQUEEZER_REPO:-../moya_squeezer}/config:/app/config:ro
+      - ${SQUEEZER_REPO:-../moya_squeezer}/logs:/app/logs
+    command:
+      [
+        "sh",
+        "-lc",
+        "ERL_LIBS=/app/_build/dev/lib elixir --sname manager --cookie squeeze_cookie -e 'Application.ensure_all_started(:moya_squeezer); case MoyaSqueezer.run(\"config/docker.toml\", worker_nodes: [:\"worker1@worker1\", :\"worker2@worker2\", :\"worker3@worker3\"]) do :ok -> :ok; {:error, reason} -> IO.puts(reason); System.halt(1) end'"
+      ]
 
-  redis:
-    image: redis:7
-    container_name: app-redis
-    ports:
-      - "6379:6379"
-    restart: unless-stopped
+  worker1:
+    image: ${SQUEEZER_IMAGE:-moya_squeezer:latest}
+    container_name: worker1
+    hostname: worker1
+    depends_on:
+      - manager
+    restart: on-failure
+    command:
+      [
+        "sh",
+        "-lc",
+        "ERL_LIBS=/app/_build/dev/lib elixir --sname worker1 --cookie squeeze_cookie -e 'Application.ensure_all_started(:moya_squeezer); case MoyaSqueezer.run_worker(:\"manager@manager\") do :ok -> :ok; {:error, reason} -> IO.puts(reason); System.halt(1) end'"
+      ]
 
-volumes:
-  postgres_data:
+  worker2:
+    image: ${SQUEEZER_IMAGE:-moya_squeezer:latest}
+    container_name: worker2
+    hostname: worker2
+    depends_on:
+      - manager
+    restart: on-failure
+    command:
+      [
+        "sh",
+        "-lc",
+        "ERL_LIBS=/app/_build/dev/lib elixir --sname worker2 --cookie squeeze_cookie -e 'Application.ensure_all_started(:moya_squeezer); case MoyaSqueezer.run_worker(:\"manager@manager\") do :ok -> :ok; {:error, reason} -> IO.puts(reason); System.halt(1) end'"
+      ]
+
+  worker3:
+    image: ${SQUEEZER_IMAGE:-moya_squeezer:latest}
+    container_name: worker3
+    hostname: worker3
+    depends_on:
+      - manager
+    restart: on-failure
+    command:
+      [
+        "sh",
+        "-lc",
+        "ERL_LIBS=/app/_build/dev/lib elixir --sname worker3 --cookie squeeze_cookie -e 'Application.ensure_all_started(:moya_squeezer); case MoyaSqueezer.run_worker(:\"manager@manager\") do :ok -> :ok; {:error, reason} -> IO.puts(reason); System.halt(1) end'"
+      ]
