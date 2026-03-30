@@ -23,8 +23,17 @@ config_effective_path = "config/generated/docker.effective.toml"
 
 [squeeze]
 # Optional runtime overrides written into the effective squeezer config.
-start_requests_per_second = 500000
-rps_step = 50000
+start_requests_per_second = 1500
+# Ready-to-run example: concurrency ramp with fixed total target RPS.
+ramp_mode = "concurrency"      # "rps" | "concurrency"
+total_target_rps = 15000
+initial_active_workers = 3
+worker_step = 1
+worker_step_interval_seconds = 1
+max_active_workers = 100
+
+# Used by classic rps ramp mode (ignored by concurrency mode).
+rps_step = 50
 # requests_per_second = 500
-# duration_seconds = 30
+duration_seconds = 10
 # warmup_seconds = 10

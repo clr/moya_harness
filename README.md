@@ -97,12 +97,25 @@ requests_per_second = 500
 rps_step = 50
 duration_seconds = 30
 warmup_seconds = 10
+
+# Optional concurrency ramp mode with fixed total target RPS
+# ramp_mode = "concurrency"
+# total_target_rps = 1500
+# initial_active_workers = 3
+# worker_step = 1
+# worker_step_interval_seconds = 5
+# max_active_workers = 6
 ```
 
 When the cluster starts, harness generates an effective squeeze config at
 `config_effective_path` and runs the manager against that file.
 Any key under `[squeeze]` is applied to the effective squeezer config, so you can
 override any setting supported by `moya_squeezer/config/*.toml` (for example `rps_step`).
+
+In `ramp_mode = "concurrency"`, the manager increases active workers over time while
+holding `total_target_rps` constant, so per-worker/connection rate decreases each step.
+When concurrency mode is enabled, harness will automatically launch enough worker
+containers to satisfy `max_active_workers` (and at least `initial_active_workers`).
 
 ## Override precedence
 

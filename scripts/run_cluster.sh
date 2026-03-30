@@ -142,6 +142,16 @@ normalize_toml_key() {
   echo "$key"
 }
 
+toml_unquote() {
+  local v="$1"
+  v="$(printf '%s' "$v" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+  if [[ "$v" == \"*\" ]]; then
+    v="${v#\"}"
+    v="${v%\"}"
+  fi
+  echo "$v"
+}
+
 upsert_toml_key() {
   local file="$1"
   local key="$2"
@@ -285,6 +295,52 @@ fi
 [[ -n "$DURATION_SECONDS" ]] && SQUEEZE_OVERRIDES[duration_seconds]="$DURATION_SECONDS"
 [[ -n "$WARMUP_SECONDS" ]] && SQUEEZE_OVERRIDES[warmup_seconds]="$WARMUP_SECONDS"
 
+# If concurrency ramp mode is enabled, ensure harness launches enough worker containers
+# for every worker that may be activated during warmup/measured phases.
+template_ramp_mode="$(toml_get "" "ramp_mode" "$SQUEEZER_REPO/$CONFIG_TEMPLATE_PATH")"
+RAMP_MODE_VALUE="$(toml_unquote "${SQUEEZE_OVERRIDES[ramp_mode]:-${template_ramp_mode:-}}")"
+if [[ "$RAMP_MODE_VALUE" == "concurrency" ]]; then
+  required_workers="$WORKER_COUNT"
+
+  template_max_active="$(toml_get "" "max_active_workers" "$SQUEEZER_REPO/$CONFIG_TEMPLATE_PATH")"
+  max_active_raw="$(toml_unquote "${SQUEEZE_OVERRIDES[max_active_workers]:-${template_max_active:-}}")"
+  if [[ "$max_active_raw" =~ ^[0-9]+$ ]] && (( max_active_raw > required_workers )); then
+    required_workers="$max_active_raw"
+  fi
+
+  template_initial_active="$(toml_get "" "initial_active_workers" "$SQUEEZER_REPO/$CONFIG_TEMPLATE_PATH")"
+  initial_active_raw="$(toml_unquote "${SQUEEZE_OVERRIDES[initial_active_workers]:-${template_initial_active:-}}")"
+  if [[ "$initial_active_raw" =~ ^[0-9]+$ ]] && (( initial_active_raw > required_workers )); then
+    required_workers="$initial_active_raw"
+  fi
+
+  if (( required_workers != WORKER_COUNT )); then
+    echo "[harness] increasing worker container count from ${WORKER_COUNT} to ${required_workers} to satisfy concurrency ramp settings"
+  fi
+
+  WORKER_COUNT="$required_workers"
+
+  if [[ "$max_active_raw" =~ ^[0-9]+$ ]] && (( WORKER_COUNT < max_active_raw )); then
+    echo "[harness] error: effective worker count (${WORKER_COUNT}) is lower than max_active_workers (${max_active_raw})"
+    exit 1
+  fi
+
+  template_connections="$(toml_get "" "connections" "$SQUEEZER_REPO/$CONFIG_TEMPLATE_PATH")"
+  effective_connections="$template_connections"
+
+  override_connections="$(toml_unquote "${SQUEEZE_OVERRIDES[connections]:-}")"
+  if [[ "$override_connections" =~ ^[0-9]+$ ]]; then
+    effective_connections="$override_connections"
+  fi
+
+  if [[ "$max_active_raw" =~ ^[0-9]+$ ]] && [[ "$effective_connections" =~ ^[0-9]+$ ]] && (( max_active_raw > effective_connections )); then
+    echo "[harness] increasing squeeze.connections from ${effective_connections} to ${max_active_raw} to satisfy concurrency ramp"
+    SQUEEZE_OVERRIDES[connections]="$max_active_raw"
+  fi
+fi
+
+echo "[harness] effective worker container count=${WORKER_COUNT} (ramp_mode=${RAMP_MODE_VALUE:-rps})"
+
 CONFIG_TEMPLATE_FULL="${SQUEEZER_REPO}/${CONFIG_TEMPLATE_PATH}"
 CONFIG_EFFECTIVE_FULL="${SQUEEZER_REPO}/${CONFIG_EFFECTIVE_PATH}"
 mkdir -p "$(dirname "$CONFIG_EFFECTIVE_FULL")"
@@ -371,8 +427,34 @@ for WORKER in "${WORKER_NAMES[@]}"; do
     --hostname "${WORKER}" \
     --network "${NETWORK_NAME}" \
     "${SQUEEZER_IMAGE}" \
-    sh -lc "while true; do ERL_LIBS=/app/_build/dev/lib elixir --sname ${WORKER} --cookie ${COOKIE} -e 'Application.ensure_all_started(:moya_squeezer); case MoyaSqueezer.run_worker(:\"${MANAGER_NAME}@${MANAGER_NAME}\") do :ok -> :ok; {:error, reason} -> IO.puts(reason); System.halt(1) end'; echo '[worker retry] waiting for manager'; sleep 2; done" >/dev/null
+    sh -lc "while true; do ERL_LIBS=/app/_build/dev/lib elixir --sname ${WORKER} --cookie ${COOKIE} -e 'Application.ensure_all_started(:moya_squeezer); Process.sleep(:infinity)'; echo '[worker restart] node exited, restarting'; sleep 1; done" >/dev/null
 done
+
+echo "[harness] waiting for worker nodes to become reachable"
+typeset -a WORKER_NODE_ATOM_LIST
+for WORKER in "${WORKER_NAMES[@]}"; do
+  WORKER_NODE_ATOM_LIST+=(":\"${WORKER}@${WORKER}\"")
+done
+WORKER_NODE_ATOMS="$(printf '%s, ' "${WORKER_NODE_ATOM_LIST[@]}")"
+WORKER_NODE_ATOMS="${WORKER_NODE_ATOMS%, }"
+
+worker_ready=0
+for attempt in {1..30}; do
+  if docker run --rm \
+    --network "${NETWORK_NAME}" \
+    "${SQUEEZER_IMAGE}" \
+    sh -lc "ERL_LIBS=/app/_build/dev/lib elixir --sname readiness --cookie ${COOKIE} -e 'nodes=[${WORKER_NODE_ATOMS}]; ok? = Enum.all?(nodes, fn n -> Node.connect(n) and Node.ping(n) == :pong end); if ok?, do: System.halt(0), else: System.halt(1)'" >/dev/null 2>&1; then
+    worker_ready=1
+    break
+  fi
+  sleep 2
+done
+
+if (( worker_ready == 0 )); then
+  echo "[harness] error: worker nodes did not become reachable in time"
+  echo "[harness] check with: docker ps --format '{{.Names}}' | grep '^worker'"
+  exit 1
+fi
 
 echo "[harness] starting manager"
 docker run -d \
