@@ -1,0 +1,32 @@
+# Explicit profile for concurrency squeeze tests.
+
+[cluster]
+network_name = "moya_net"
+
+[moya_db]
+node_count = 1
+base_port = 9000
+image = "moya_db:latest"
+
+[moya_squeezer]
+manager_name = "manager"
+worker_count = 3
+cookie = "squeeze_cookie"
+config_template_path = "config/docker.toml"
+config_effective_path = "config/generated/docker.effective.toml"
+
+[squeeze]
+ramp_mode = "concurrency"
+total_target_rps = 10000
+initial_active_workers = 3
+worker_step = 1
+worker_step_interval_seconds = 1
+max_active_workers = 100
+
+connections_per_worker = 25
+stop_latency_percentile = 0.95
+latency_breach_consecutive_windows = 5
+duration_seconds = 60
+warmup_seconds = 10
+worker_inflight_limit = 25
+

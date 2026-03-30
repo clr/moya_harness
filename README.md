@@ -45,7 +45,22 @@ chmod +x scripts/run_cluster.sh scripts/stop_cluster.sh
 ```
 
 By default, `run_cluster.sh` reads `./harness.config.toml` for cluster shape and squeeze overrides.
-It also streams manager output in the same terminal and stops streaming when the manager prints `[final]`.
+It also streams manager output in the same terminal until the manager process exits.
+
+For explicit test-mode separation, use the dedicated configs:
+
+```sh
+./scripts/run_cluster.sh --config harness.rps.config.toml
+./scripts/run_cluster.sh --config harness.concurrency.config.toml
+```
+
+Convenience wrappers are also available:
+
+```sh
+chmod +x scripts/run_rps.sh scripts/run_concurrency.sh
+./scripts/run_rps.sh
+./scripts/run_concurrency.sh
+```
 
 Tail manager logs:
 
@@ -144,6 +159,13 @@ Override squeeze start RPS for one run:
 
 ```sh
 ./scripts/run_cluster.sh --start-rps 2200
+```
+
+Run explicitly in RPS mode or concurrency mode via config file:
+
+```sh
+./scripts/run_cluster.sh --config harness.rps.config.toml
+./scripts/run_cluster.sh --config harness.concurrency.config.toml
 ```
 
 See supported options:

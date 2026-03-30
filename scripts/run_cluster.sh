@@ -472,14 +472,6 @@ echo "[harness] tail manager logs with: docker logs -f ${MANAGER_NAME}"
 echo "[harness] stop with: ${HARNESS_ROOT}/scripts/stop_cluster.sh"
 
 if [[ "${FOLLOW_MANAGER_REPORT}" == "1" ]]; then
-  echo "[harness] streaming manager output until final report..."
-  docker logs -f "${MANAGER_NAME}" 2>&1 | awk '
-    {
-      print
-      fflush()
-    }
-    /\[final\]/ {
-      exit 0
-    }
-  '
+  echo "[harness] streaming manager output until manager exits..."
+  docker logs -f "${MANAGER_NAME}" 2>&1
 fi
