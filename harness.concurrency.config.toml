@@ -18,14 +18,20 @@ config_effective_path = "config/generated/docker.effective.toml"
 [squeeze]
 ramp_mode = "concurrency"
 total_target_rps = 10000
-initial_active_workers = 3
+# Container-based concurrency ramp:
+# - initial_active_workers / max_active_workers count worker containers (nodes)
+# - each step activates more worker containers
+# - per-container and per-process rate are reduced to hold total_target_rps constant
+initial_active_workers = 4
 worker_step = 1
-worker_step_interval_seconds = 1
-max_active_workers = 100
+worker_step_interval_seconds = 5
+max_active_workers = 20
 
+# Fixed process count per worker container.
 connections_per_worker = 25
 stop_latency_percentile = 0.95
 latency_breach_consecutive_windows = 5
+error_breach_consecutive_windows = 5
 duration_seconds = 60
 warmup_seconds = 10
 worker_inflight_limit = 25

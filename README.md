@@ -128,9 +128,12 @@ Any key under `[squeeze]` is applied to the effective squeezer config, so you ca
 override any setting supported by `moya_squeezer/config/*.toml` (for example `rps_step`).
 
 In `ramp_mode = "concurrency"`, the manager increases active workers over time while
-holding `total_target_rps` constant, so per-worker/connection rate decreases each step.
+holding `total_target_rps` constant by activating additional worker containers (nodes),
+so per-worker-container and per-connection rate decreases each step.
 When concurrency mode is enabled, harness will automatically launch enough worker
 containers to satisfy `max_active_workers` (and at least `initial_active_workers`).
+If `initial_active_workers` is lower than `max_active_workers`, harness starts only the
+initial set and can add additional worker containers during the run as ramp steps occur.
 
 ## Override precedence
 
