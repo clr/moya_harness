@@ -1,0 +1,30 @@
+# Explicit profile for classic RPS squeeze tests.
+
+[cluster]
+network_name = "moya_net"
+
+[moya_db]
+node_count = 1
+base_port = 9000
+image = "moya_db:latest"
+
+[moya_squeezer]
+manager_name = "manager"
+worker_count = 10
+cookie = "squeeze_cookie"
+config_template_path = "config/docker.toml"
+config_effective_path = "config/generated/docker.effective.toml"
+
+[squeeze]
+connections_per_worker = 25
+stop_latency_percentile = 0.95
+latency_breach_consecutive_windows = 5
+worker_tick_ms = 10
+ramp_mode = "rps"
+start_requests_per_second = 5000
+requests_per_second = 500
+rps_step = 500
+step_interval_seconds = 1
+duration_seconds = 60
+warmup_seconds = 10
+worker_inflight_limit = 25

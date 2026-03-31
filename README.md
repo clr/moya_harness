@@ -45,7 +45,22 @@ chmod +x scripts/run_cluster.sh scripts/stop_cluster.sh
 ```
 
 By default, `run_cluster.sh` reads `./harness.config.toml` for cluster shape and squeeze overrides.
-It also streams manager output in the same terminal and stops streaming when the manager prints `[final]`.
+It also streams manager output in the same terminal until the manager process exits.
+
+For explicit test-mode separation, use the dedicated configs:
+
+```sh
+./scripts/run_cluster.sh --config harness.rps.config.toml
+./scripts/run_cluster.sh --config harness.concurrency.config.toml
+```
+
+Convenience wrappers are also available:
+
+```sh
+chmod +x scripts/run_rps.sh scripts/run_concurrency.sh
+./scripts/run_rps.sh
+./scripts/run_concurrency.sh
+```
 
 Tail manager logs:
 
@@ -113,9 +128,12 @@ Any key under `[squeeze]` is applied to the effective squeezer config, so you ca
 override any setting supported by `moya_squeezer/config/*.toml` (for example `rps_step`).
 
 In `ramp_mode = "concurrency"`, the manager increases active workers over time while
-holding `total_target_rps` constant, so per-worker/connection rate decreases each step.
+holding `total_target_rps` constant by activating additional worker containers (nodes),
+so per-worker-container and per-connection rate decreases each step.
 When concurrency mode is enabled, harness will automatically launch enough worker
 containers to satisfy `max_active_workers` (and at least `initial_active_workers`).
+If `initial_active_workers` is lower than `max_active_workers`, harness starts only the
+initial set and can add additional worker containers during the run as ramp steps occur.
 
 ## Override precedence
 
@@ -144,6 +162,13 @@ Override squeeze start RPS for one run:
 
 ```sh
 ./scripts/run_cluster.sh --start-rps 2200
+```
+
+Run explicitly in RPS mode or concurrency mode via config file:
+
+```sh
+./scripts/run_cluster.sh --config harness.rps.config.toml
+./scripts/run_cluster.sh --config harness.concurrency.config.toml
 ```
 
 See supported options:

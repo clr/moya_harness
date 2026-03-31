@@ -121,8 +121,8 @@ toml_section_pairs() {
       }
 
       if (in_section && index(line, "=") > 0) {
-        key = line
-        sub(/=.*/, "", key)
+        split(line, parts, "=")
+        key = parts[1]
         gsub(/^[ \t]+|[ \t]+$/, "", key)
         value = substr(line, index(line, "=") + 1)
         gsub(/^[ \t]+|[ \t]+$/, "", value)
@@ -135,20 +135,14 @@ toml_section_pairs() {
 normalize_toml_key() {
   local key="$1"
   key="$(printf '%s' "$key" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
-  if [[ "$key" == \"*\" ]]; then
-    key="${key#\"}"
-    key="${key%\"}"
-  fi
+  key="$(printf '%s' "$key" | sed -E 's/^"(.*)"$/\1/')"
   echo "$key"
 }
 
 toml_unquote() {
   local v="$1"
   v="$(printf '%s' "$v" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
-  if [[ "$v" == \"*\" ]]; then
-    v="${v#\"}"
-    v="${v%\"}"
-  fi
+  v="$(printf '%s' "$v" | sed -E 's/^"(.*)"$/\1/')"
   echo "$v"
 }
 
@@ -189,6 +183,7 @@ upsert_toml_key() {
 }
 
 if [[ -f "$HARNESS_CONFIG_FILE" ]]; then
+  echo "[harness][debug] loading harness config: ${HARNESS_CONFIG_FILE}"
   cfg_network_name="$(toml_get "cluster" "network_name" "$HARNESS_CONFIG_FILE")"
   cfg_db_node_count="$(toml_get "moya_db" "node_count" "$HARNESS_CONFIG_FILE")"
   cfg_db_base_port="$(toml_get "moya_db" "base_port" "$HARNESS_CONFIG_FILE")"
@@ -201,8 +196,34 @@ if [[ -f "$HARNESS_CONFIG_FILE" ]]; then
   while IFS=$'\t' read -r cfg_key cfg_value; do
     [[ -z "$cfg_key" ]] && continue
     cfg_key="$(normalize_toml_key "$cfg_key")"
+    cfg_key="${cfg_key#\"}"
+    cfg_key="${cfg_key%\"}"
     SQUEEZE_OVERRIDES["$cfg_key"]="$cfg_value"
   done < <(toml_section_pairs "squeeze" "$HARNESS_CONFIG_FILE")
+
+  # Defensive explicit reads for critical squeeze keys (avoids any parser edge cases
+  # in generic section-pair extraction on zsh/macOS).
+  for explicit_key in \
+    ramp_mode total_target_rps initial_active_workers worker_step \
+    worker_step_interval_seconds max_active_workers connections_per_worker \
+    stop_latency_percentile latency_breach_consecutive_windows duration_seconds \
+    warmup_seconds worker_inflight_limit base_url requests_per_second \
+    start_requests_per_second rps_step
+  do
+    explicit_val="$(toml_get "squeeze" "$explicit_key" "$HARNESS_CONFIG_FILE")"
+    if [[ -n "$explicit_val" ]]; then
+      case "$explicit_key" in
+        ramp_mode|base_url)
+          SQUEEZE_OVERRIDES["$explicit_key"]="\"$explicit_val\""
+          ;;
+        *)
+          SQUEEZE_OVERRIDES["$explicit_key"]="$explicit_val"
+          ;;
+      esac
+    fi
+  done
+
+  echo "[harness][debug] loaded squeeze override keys: ${(k)SQUEEZE_OVERRIDES}"
 
   [[ -n "$cfg_network_name" ]] && NETWORK_NAME="$cfg_network_name"
   [[ -n "$cfg_db_node_count" ]] && DB_NODE_COUNT="$cfg_db_node_count"
@@ -298,18 +319,45 @@ fi
 # If concurrency ramp mode is enabled, ensure harness launches enough worker containers
 # for every worker that may be activated during warmup/measured phases.
 template_ramp_mode="$(toml_get "" "ramp_mode" "$SQUEEZER_REPO/$CONFIG_TEMPLATE_PATH")"
-RAMP_MODE_VALUE="$(toml_unquote "${SQUEEZE_OVERRIDES[ramp_mode]:-${template_ramp_mode:-}}")"
+explicit_ramp_mode=""
+explicit_max_active=""
+explicit_initial_active=""
+explicit_worker_step=""
+explicit_worker_step_interval=""
+if [[ -f "$HARNESS_CONFIG_FILE" ]]; then
+  explicit_ramp_mode="$(toml_get "squeeze" "ramp_mode" "$HARNESS_CONFIG_FILE")"
+  explicit_max_active="$(toml_get "squeeze" "max_active_workers" "$HARNESS_CONFIG_FILE")"
+  explicit_initial_active="$(toml_get "squeeze" "initial_active_workers" "$HARNESS_CONFIG_FILE")"
+  explicit_worker_step="$(toml_get "squeeze" "worker_step" "$HARNESS_CONFIG_FILE")"
+  explicit_worker_step_interval="$(toml_get "squeeze" "worker_step_interval_seconds" "$HARNESS_CONFIG_FILE")"
+fi
+RAMP_MODE_VALUE="$(toml_unquote "${explicit_ramp_mode:-${SQUEEZE_OVERRIDES[ramp_mode]:-${template_ramp_mode:-}}}")"
+echo "[harness][debug] resolved ramp_mode='${RAMP_MODE_VALUE:-<empty>}' (config override='${SQUEEZE_OVERRIDES[ramp_mode]:-<none>}', template='${template_ramp_mode:-<none>}')"
+echo "[harness][debug] explicit max_active_workers='${explicit_max_active:-<none>}' override max_active_workers='${SQUEEZE_OVERRIDES[max_active_workers]:-<none>}'"
+INITIAL_ACTIVE_WORKERS_VALUE=""
+MAX_ACTIVE_WORKERS_VALUE=""
+WORKER_STEP_VALUE=""
+WORKER_STEP_INTERVAL_VALUE=""
+POOL_WORKER_COUNT=""
 if [[ "$RAMP_MODE_VALUE" == "concurrency" ]]; then
   required_workers="$WORKER_COUNT"
 
   template_max_active="$(toml_get "" "max_active_workers" "$SQUEEZER_REPO/$CONFIG_TEMPLATE_PATH")"
-  max_active_raw="$(toml_unquote "${SQUEEZE_OVERRIDES[max_active_workers]:-${template_max_active:-}}")"
-  if [[ "$max_active_raw" =~ ^[0-9]+$ ]] && (( max_active_raw > required_workers )); then
-    required_workers="$max_active_raw"
-  fi
+  max_active_raw="$(toml_unquote "${explicit_max_active:-${SQUEEZE_OVERRIDES[max_active_workers]:-${template_max_active:-}}}")"
+  MAX_ACTIVE_WORKERS_VALUE="$max_active_raw"
 
   template_initial_active="$(toml_get "" "initial_active_workers" "$SQUEEZER_REPO/$CONFIG_TEMPLATE_PATH")"
-  initial_active_raw="$(toml_unquote "${SQUEEZE_OVERRIDES[initial_active_workers]:-${template_initial_active:-}}")"
+  initial_active_raw="$(toml_unquote "${explicit_initial_active:-${SQUEEZE_OVERRIDES[initial_active_workers]:-${template_initial_active:-}}}")"
+  INITIAL_ACTIVE_WORKERS_VALUE="$initial_active_raw"
+
+  template_worker_step="$(toml_get "" "worker_step" "$SQUEEZER_REPO/$CONFIG_TEMPLATE_PATH")"
+  worker_step_raw="$(toml_unquote "${explicit_worker_step:-${SQUEEZE_OVERRIDES[worker_step]:-${template_worker_step:-1}}}")"
+  WORKER_STEP_VALUE="$worker_step_raw"
+
+  template_worker_step_interval="$(toml_get "" "worker_step_interval_seconds" "$SQUEEZER_REPO/$CONFIG_TEMPLATE_PATH")"
+  worker_step_interval_raw="$(toml_unquote "${explicit_worker_step_interval:-${SQUEEZE_OVERRIDES[worker_step_interval_seconds]:-${template_worker_step_interval:-5}}}")"
+  WORKER_STEP_INTERVAL_VALUE="$worker_step_interval_raw"
+
   if [[ "$initial_active_raw" =~ ^[0-9]+$ ]] && (( initial_active_raw > required_workers )); then
     required_workers="$initial_active_raw"
   fi
@@ -320,9 +368,14 @@ if [[ "$RAMP_MODE_VALUE" == "concurrency" ]]; then
 
   WORKER_COUNT="$required_workers"
 
-  if [[ "$max_active_raw" =~ ^[0-9]+$ ]] && (( WORKER_COUNT < max_active_raw )); then
-    echo "[harness] error: effective worker count (${WORKER_COUNT}) is lower than max_active_workers (${max_active_raw})"
-    exit 1
+  POOL_WORKER_COUNT="$WORKER_COUNT"
+  if [[ "$max_active_raw" =~ ^[0-9]+$ ]] && (( max_active_raw > POOL_WORKER_COUNT )); then
+    POOL_WORKER_COUNT="$max_active_raw"
+  fi
+
+  if [[ "$max_active_raw" =~ ^[0-9]+$ ]] && (( WORKER_COUNT > max_active_raw )); then
+    echo "[harness] capping worker container count from ${WORKER_COUNT} to ${max_active_raw} due to max_active_workers"
+    WORKER_COUNT="$max_active_raw"
   fi
 
   template_connections="$(toml_get "" "connections" "$SQUEEZER_REPO/$CONFIG_TEMPLATE_PATH")"
@@ -340,6 +393,9 @@ if [[ "$RAMP_MODE_VALUE" == "concurrency" ]]; then
 fi
 
 echo "[harness] effective worker container count=${WORKER_COUNT} (ramp_mode=${RAMP_MODE_VALUE:-rps})"
+if [[ "$RAMP_MODE_VALUE" == "concurrency" ]]; then
+  echo "[harness] concurrency pool worker count=${POOL_WORKER_COUNT:-$WORKER_COUNT} initial_active_workers=${INITIAL_ACTIVE_WORKERS_VALUE:-$WORKER_COUNT} max_active_workers=${MAX_ACTIVE_WORKERS_VALUE:-$WORKER_COUNT}"
+fi
 
 CONFIG_TEMPLATE_FULL="${SQUEEZER_REPO}/${CONFIG_TEMPLATE_PATH}"
 CONFIG_EFFECTIVE_FULL="${SQUEEZER_REPO}/${CONFIG_EFFECTIVE_PATH}"
@@ -367,14 +423,37 @@ done
 
 typeset -a WORKER_NAMES
 typeset -a WORKER_NODES
-for ((i = 1; i <= WORKER_COUNT; i++)); do
+typeset -a CANDIDATE_WORKER_NODES
+typeset -a ACTIVE_WORKER_NAMES
+typeset -a ACTIVE_WORKER_NODES
+candidate_count="$WORKER_COUNT"
+if [[ "$RAMP_MODE_VALUE" == "concurrency" ]] && [[ -n "$POOL_WORKER_COUNT" ]]; then
+  candidate_count="$POOL_WORKER_COUNT"
+fi
+
+initial_launch_count="$WORKER_COUNT"
+if [[ "$RAMP_MODE_VALUE" == "concurrency" ]] && [[ "$INITIAL_ACTIVE_WORKERS_VALUE" =~ ^[0-9]+$ ]] && (( INITIAL_ACTIVE_WORKERS_VALUE > 0 )); then
+  initial_launch_count="$INITIAL_ACTIVE_WORKERS_VALUE"
+fi
+if (( initial_launch_count > candidate_count )); then
+  initial_launch_count="$candidate_count"
+fi
+
+for ((i = 1; i <= candidate_count; i++)); do
   worker="worker${i}"
+  CANDIDATE_WORKER_NODES+=(":\"${worker}@${worker}\"")
   WORKER_NAMES+=("$worker")
   WORKER_NODES+=(":\"${worker}@${worker}\"")
+  if (( i <= initial_launch_count )); then
+    ACTIVE_WORKER_NAMES+=("$worker")
+    ACTIVE_WORKER_NODES+=(":\"${worker}@${worker}\"")
+  fi
 done
 
-WORKER_NODE_LIST="$(printf '%s, ' "${WORKER_NODES[@]}")"
+WORKER_NODE_LIST="$(printf '%s, ' "${ACTIVE_WORKER_NODES[@]}")"
 WORKER_NODE_LIST="${WORKER_NODE_LIST%, }"
+CANDIDATE_WORKER_NODE_LIST="$(printf '%s, ' "${CANDIDATE_WORKER_NODES[@]}")"
+CANDIDATE_WORKER_NODE_LIST="${CANDIDATE_WORKER_NODE_LIST%, }"
 
 echo "[harness] building db image: ${DB_IMAGE}"
 docker build -t "${DB_IMAGE}" "${DB_REPO}"
@@ -464,7 +543,7 @@ docker run -d \
   -v "${SQUEEZER_REPO}/config:/app/config:ro" \
   -v "${SQUEEZER_REPO}/logs:/app/logs" \
   "${SQUEEZER_IMAGE}" \
-  sh -lc "while true; do ERL_LIBS=/app/_build/dev/lib elixir --sname ${MANAGER_NAME} --cookie ${COOKIE} -e 'Application.ensure_all_started(:moya_squeezer); case MoyaSqueezer.run(\"${CONFIG_EFFECTIVE_PATH}\", worker_nodes: [${WORKER_NODE_LIST}]) do :ok -> :ok; {:error, reason} -> IO.puts(reason); System.halt(1) end' && break; echo '[manager retry] waiting for workers'; sleep 2; done"
+  sh -lc "ERL_LIBS=/app/_build/dev/lib elixir --sname ${MANAGER_NAME} --cookie ${COOKIE} -e 'Application.ensure_all_started(:moya_squeezer); case MoyaSqueezer.run(\"${CONFIG_EFFECTIVE_PATH}\", worker_nodes: [${WORKER_NODE_LIST}], candidate_worker_nodes: [${CANDIDATE_WORKER_NODE_LIST}]) do :ok -> :ok; {:error, reason} -> IO.puts(reason); System.halt(1) end'"
 
 echo "[harness] started with db_nodes=${DB_NODE_COUNT} workers=${WORKER_COUNT}"
 echo "[harness] effective squeeze config: ${CONFIG_EFFECTIVE_FULL}"
@@ -472,14 +551,6 @@ echo "[harness] tail manager logs with: docker logs -f ${MANAGER_NAME}"
 echo "[harness] stop with: ${HARNESS_ROOT}/scripts/stop_cluster.sh"
 
 if [[ "${FOLLOW_MANAGER_REPORT}" == "1" ]]; then
-  echo "[harness] streaming manager output until final report..."
-  docker logs -f "${MANAGER_NAME}" 2>&1 | awk '
-    {
-      print
-      fflush()
-    }
-    /\[final\]/ {
-      exit 0
-    }
-  '
+  echo "[harness] streaming manager output until manager exits..."
+  docker logs -f "${MANAGER_NAME}" 2>&1
 fi
