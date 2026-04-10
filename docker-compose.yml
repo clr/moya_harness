@@ -5,6 +5,16 @@ services:
     image: ${DB_IMAGE:-moya_db:latest}
     container_name: moya_db
     ports:
+      - "9090:9000"
+
+  moya_db_balancer:
+    build:
+      context: ${DB_BALANCER_REPO:-../moya_db_balancer}
+    image: ${DB_BALANCER_IMAGE:-moya_db_balancer:latest}
+    container_name: moya_db_balancer
+    depends_on:
+      - moya_db
+    ports:
       - "9000:9000"
 
   manager:
@@ -17,6 +27,8 @@ services:
     hostname: manager
     depends_on:
       - moya_db
+    ports:
+      - "4100:4001"
     volumes:
       - ${SQUEEZER_REPO:-../moya_squeezer}/config:/app/config:ro
       - ${SQUEEZER_REPO:-../moya_squeezer}/logs:/app/logs
@@ -33,6 +45,8 @@ services:
     hostname: worker1
     depends_on:
       - manager
+    ports:
+      - "4101:4001"
     restart: on-failure
     command:
       [
@@ -47,6 +61,8 @@ services:
     hostname: worker2
     depends_on:
       - manager
+    ports:
+      - "4102:4001"
     restart: on-failure
     command:
       [
@@ -61,6 +77,8 @@ services:
     hostname: worker3
     depends_on:
       - manager
+    ports:
+      - "4103:4001"
     restart: on-failure
     command:
       [
