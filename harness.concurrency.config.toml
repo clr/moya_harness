@@ -4,7 +4,7 @@
 network_name = "moya_net"
 
 [moya_db]
-node_count = 1
+node_count = 3
 base_port = 9000
 image = "moya_db:latest"
 
@@ -25,7 +25,7 @@ total_target_rps = 10000
 initial_active_workers = 4
 worker_step = 1
 worker_step_interval_seconds = 5
-max_active_workers = 20
+worker_container_pool = 10
 
 # Fixed process count per worker container.
 connections_per_worker = 25

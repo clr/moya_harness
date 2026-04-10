@@ -18,7 +18,7 @@
 network_name = "moya_net"
 
 [moya_db]
-node_count = 1
+node_count = 3
 base_port = 9000
 image = "moya_db:latest"
 

@@ -10,11 +10,13 @@ Related repositories:
 
 - https://github.com/clr/moya_squeezer
 - https://github.com/clr/moya
+- https://github.com/clr/moya_db_balancer
 
 This repo now owns the container orchestration logic for:
 
 - `moya_squeezer` (manager + workers)
 - `moya_db`
+- `moya_db_balancer`
 
 ## What lives here
 
@@ -31,11 +33,13 @@ By default, harness expects these adjacent directories:
 
 - `../moya_squeezer`
 - `../moya_db`
+- `../moya_db_balancer`
 
 Override with env vars when needed:
 
 - `SQUEEZER_REPO`
 - `DB_REPO`
+- `DB_BALANCER_REPO`
 
 ## Quick start (plain Docker)
 
@@ -76,12 +80,16 @@ Stop everything:
 
 Useful overrides:
 
-- `SQUEEZER_IMAGE`, `DB_IMAGE`
+- `SQUEEZER_IMAGE`, `DB_IMAGE`, `DB_BALANCER_IMAGE`
 - `BASE_IMAGE`
 - `NETWORK_NAME`
 - `COOKIE`
 - `CONFIG_PATH` (template path inside squeezer repo; backward-compatible alias)
 - `WORKER_COUNT`, `DB_NODE_COUNT`, `DB_BASE_PORT`
+- `DB_DIRECT_PORT` (default `9090` for direct `moya_db` access)
+- `MANAGER_METRICS_PORT` (default `4100`)
+- `WORKER_METRICS_PORT_BASE` (default `4101`, then increments per worker)
+- `DB_MEMORY` (e.g. `4g`, `8192m`)
 - `START_REQUESTS_PER_SECOND`, `REQUESTS_PER_SECOND`, `DURATION_SECONDS`, `WARMUP_SECONDS`
 
 ## Harness config file
@@ -158,6 +166,14 @@ Run with 3 db nodes and custom base port:
 ./scripts/run_cluster.sh --db-nodes 3
 ```
 
+Run with an explicit DB container memory cap:
+
+```sh
+DB_MEMORY=8g ./scripts/run_cluster.sh --config harness.concurrency.config.toml
+# or
+./scripts/run_cluster.sh --config harness.concurrency.config.toml --db-memory 8g
+```
+
 Override squeeze start RPS for one run:
 
 ```sh
@@ -185,6 +201,15 @@ Run detached (do not stream manager report in this terminal):
 
 ## Docker Compose usage
 
+`moya_db_balancer` is exposed on host port `9000` and fronts `moya_db`. `moya_db`
+is also exposed on `9090` for direct testing. Metrics endpoints are exposed for
+external scraping as:
+
+- `moya_db`: `http://localhost:9090/db/v0.1/metrics`
+- `moya_db_balancer`: `http://localhost:9000/db_balancer/v0.1/metrics`
+- `moya_squeezer manager`: `http://localhost:4100/manager/v0.1/metrics`
+- `moya_squeezer workers`: `http://localhost:4101/worker/v0.1/metrics`, `:4102`, `:4103`, ...
+
 ```sh
 docker compose up --build --abort-on-container-exit
 ```
@@ -192,7 +217,8 @@ docker compose up --build --abort-on-container-exit
 Compose can also use these env vars:
 
 - `SQUEEZER_REPO`, `DB_REPO`
-- `SQUEEZER_IMAGE`, `DB_IMAGE`
+- `DB_BALANCER_REPO`
+- `SQUEEZER_IMAGE`, `DB_IMAGE`, `DB_BALANCER_IMAGE`
 - `BASE_IMAGE`
 
 ## Notes
