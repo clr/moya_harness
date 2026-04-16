@@ -2,10 +2,12 @@
 
 set -euo pipefail
 
-HARNESS_ROOT="${HARNESS_ROOT:-/Users/clr/moya_harness}"
-SQUEEZER_REPO="${SQUEEZER_REPO:-/Users/clr/moya_squeezer}"
-DB_REPO="${DB_REPO:-/Users/clr/moya_db}"
-DB_BALANCER_REPO="${DB_BALANCER_REPO:-/Users/clr/moya_db_balancer}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${(%):-%N}")" && pwd)"
+HARNESS_ROOT="${HARNESS_ROOT:-$(cd -- "${SCRIPT_DIR}/.." && pwd)}"
+WORKSPACE_ROOT="$(cd -- "${HARNESS_ROOT}/.." && pwd)"
+SQUEEZER_REPO="${SQUEEZER_REPO:-${WORKSPACE_ROOT}/moya_squeezer}"
+DB_REPO="${DB_REPO:-${WORKSPACE_ROOT}/moya_db}"
+DB_BALANCER_REPO="${DB_BALANCER_REPO:-${WORKSPACE_ROOT}/moya_db_balancer}"
 HARNESS_CONFIG_FILE="${HARNESS_CONFIG_FILE:-${HARNESS_ROOT}/harness.config.toml}"
 
 NETWORK_NAME="${NETWORK_NAME:-moya_net}"
@@ -25,6 +27,7 @@ DB_DIRECT_PORT="${DB_DIRECT_PORT:-9090}"
 MANAGER_METRICS_PORT="${MANAGER_METRICS_PORT:-4100}"
 WORKER_METRICS_PORT_BASE="${WORKER_METRICS_PORT_BASE:-4101}"
 DB_MEMORY="${DB_MEMORY:-}"
+SKIP_BUILD="${SKIP_BUILD:-0}"
 
 START_REQUESTS_PER_SECOND="${START_REQUESTS_PER_SECOND:-}"
 REQUESTS_PER_SECOND="${REQUESTS_PER_SECOND:-}"
@@ -60,6 +63,7 @@ Options:
   --workers <n>          Override moya_squeezer worker count
   --db-nodes <n>         Override moya_db node count
   --db-memory <size>     Set per-db-container Docker memory limit (e.g. 4g, 8192m)
+  --skip-build           Reuse prebuilt images; skip docker build steps
   --db-direct-port <n>   Expose primary moya_db node on host for direct testing (default: 9090)
   --manager-metrics-port <n> Expose manager metrics endpoint (default: 4100)
   --worker-metrics-port-base <n> Expose worker metrics endpoints from base port (default: 4101)
@@ -270,6 +274,10 @@ while [[ $# -gt 0 ]]; do
     --db-memory)
       DB_MEMORY="$2"
       shift 2
+      ;;
+    --skip-build)
+      SKIP_BUILD="1"
+      shift
       ;;
     --db-direct-port)
       DB_DIRECT_PORT="$2"
@@ -500,25 +508,36 @@ WORKER_NODE_LIST="${WORKER_NODE_LIST%, }"
 CANDIDATE_WORKER_NODE_LIST="$(printf '%s, ' "${CANDIDATE_WORKER_NODES[@]}")"
 CANDIDATE_WORKER_NODE_LIST="${CANDIDATE_WORKER_NODE_LIST%, }"
 
-echo "[harness] building db image: ${DB_IMAGE}"
-docker build -t "${DB_IMAGE}" "${DB_REPO}"
-
-echo "[harness] building db balancer image: ${DB_BALANCER_IMAGE}"
-if [[ -f "${DB_BALANCER_REPO}/Dockerfile" ]]; then
-  docker build -t "${DB_BALANCER_IMAGE}" "${DB_BALANCER_REPO}"
-elif docker image inspect "${DB_BALANCER_IMAGE}" >/dev/null 2>&1; then
-  echo "[harness] using existing db balancer image: ${DB_BALANCER_IMAGE}"
+if [[ "${SKIP_BUILD}" == "1" ]]; then
+  echo "[harness] --skip-build enabled; validating prebuilt images"
+  for image in "${DB_IMAGE}" "${DB_BALANCER_IMAGE}" "${SQUEEZER_IMAGE}"; do
+    if ! docker image inspect "${image}" >/dev/null 2>&1; then
+      echo "[harness] error: required image not found locally: ${image}"
+      echo "[harness] prebuild/tag it first, or rerun without --skip-build"
+      exit 1
+    fi
+  done
 else
-  echo "[harness] error: cannot build db balancer image"
-  echo "[harness] expected Dockerfile at: ${DB_BALANCER_REPO}/Dockerfile"
-  echo "[harness] either:"
-  echo "[harness]   1) set DB_BALANCER_REPO to a repo containing a Dockerfile"
-  echo "[harness]   2) pre-build/tag image '${DB_BALANCER_IMAGE}' locally"
-  exit 1
-fi
+  echo "[harness] building db image: ${DB_IMAGE}"
+  docker build -t "${DB_IMAGE}" "${DB_REPO}"
 
-echo "[harness] building squeezer image: ${SQUEEZER_IMAGE}"
-docker build --build-arg BASE_IMAGE="${BASE_IMAGE}" -t "${SQUEEZER_IMAGE}" "${SQUEEZER_REPO}"
+  echo "[harness] building db balancer image: ${DB_BALANCER_IMAGE}"
+  if [[ -f "${DB_BALANCER_REPO}/Dockerfile" ]]; then
+    docker build -t "${DB_BALANCER_IMAGE}" "${DB_BALANCER_REPO}"
+  elif docker image inspect "${DB_BALANCER_IMAGE}" >/dev/null 2>&1; then
+    echo "[harness] using existing db balancer image: ${DB_BALANCER_IMAGE}"
+  else
+    echo "[harness] error: cannot build db balancer image"
+    echo "[harness] expected Dockerfile at: ${DB_BALANCER_REPO}/Dockerfile"
+    echo "[harness] either:"
+    echo "[harness]   1) set DB_BALANCER_REPO to a repo containing a Dockerfile"
+    echo "[harness]   2) pre-build/tag image '${DB_BALANCER_IMAGE}' locally"
+    exit 1
+  fi
+
+  echo "[harness] building squeezer image: ${SQUEEZER_IMAGE}"
+  docker build --build-arg BASE_IMAGE="${BASE_IMAGE}" -t "${SQUEEZER_IMAGE}" "${SQUEEZER_REPO}"
+fi
 
 echo "[harness] ensuring network: ${NETWORK_NAME}"
 docker network create "${NETWORK_NAME}" >/dev/null 2>&1 || true

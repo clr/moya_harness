@@ -83,7 +83,6 @@ Recommended order:
 
 Replace placeholders in:
 
-- `docker-compose.yml`
 - `deploy/helm/distributed-app/values.yaml`
 - `.github/workflows/ci-cd.yml`
 

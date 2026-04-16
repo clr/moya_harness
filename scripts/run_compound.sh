@@ -2,8 +2,10 @@
 
 set -euo pipefail
 
-HARNESS_ROOT="${HARNESS_ROOT:-/Users/clr/moya_harness}"
-SQUEEZER_REPO="${SQUEEZER_REPO:-/Users/clr/moya_squeezer}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${(%):-%N}")" && pwd)"
+HARNESS_ROOT="${HARNESS_ROOT:-$(cd -- "${SCRIPT_DIR}/.." && pwd)}"
+WORKSPACE_ROOT="$(cd -- "${HARNESS_ROOT}/.." && pwd)"
+SQUEEZER_REPO="${SQUEEZER_REPO:-${WORKSPACE_ROOT}/moya_squeezer}"
 NETWORK_NAME="${NETWORK_NAME:-moya_net}"
 
 RPS_CONFIG="${HARNESS_ROOT}/harness.rps.config.toml"

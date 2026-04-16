@@ -20,7 +20,6 @@ This repo now owns the container orchestration logic for:
 
 ## What lives here
 
-- `docker-compose.yml`: multi-container local stack for Moya
 - `scripts/run_cluster.sh`: plain-docker cluster launcher
 - `scripts/stop_cluster.sh`: plain-docker cluster teardown
 - `docs/distributed-app-blueprint.md`: deployment architecture notes
@@ -90,6 +89,7 @@ Useful overrides:
 - `MANAGER_METRICS_PORT` (default `4100`)
 - `WORKER_METRICS_PORT_BASE` (default `4101`, then increments per worker)
 - `DB_MEMORY` (e.g. `4g`, `8192m`)
+- `SKIP_BUILD=1` (reuse existing local images; skip image builds)
 - `START_REQUESTS_PER_SECOND`, `REQUESTS_PER_SECOND`, `DURATION_SECONDS`, `WARMUP_SECONDS`
 
 ## Harness config file
@@ -199,27 +199,13 @@ Run detached (do not stream manager report in this terminal):
 ./scripts/run_cluster.sh --no-follow-report
 ```
 
-## Docker Compose usage
-
-`moya_db_balancer` is exposed on host port `9000` and fronts `moya_db`. `moya_db`
-is also exposed on `9090` for direct testing. Metrics endpoints are exposed for
-external scraping as:
-
-- `moya_db`: `http://localhost:9090/db/v0.1/metrics`
-- `moya_db_balancer`: `http://localhost:9000/db_balancer/v0.1/metrics`
-- `moya_squeezer manager`: `http://localhost:4100/manager/v0.1/metrics`
-- `moya_squeezer workers`: `http://localhost:4101/worker/v0.1/metrics`, `:4102`, `:4103`, ...
+Reuse prebuilt images and skip all docker build steps:
 
 ```sh
-docker compose up --build --abort-on-container-exit
+./scripts/run_cluster.sh --skip-build
+# or
+SKIP_BUILD=1 ./scripts/run_rps.sh
 ```
-
-Compose can also use these env vars:
-
-- `SQUEEZER_REPO`, `DB_REPO`
-- `DB_BALANCER_REPO`
-- `SQUEEZER_IMAGE`, `DB_IMAGE`, `DB_BALANCER_IMAGE`
-- `BASE_IMAGE`
 
 ## Notes
 
