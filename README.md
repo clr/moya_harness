@@ -10,15 +10,16 @@ Related repositories:
 
 - https://github.com/clr/moya_squeezer
 - https://github.com/clr/moya
+- https://github.com/clr/moya_db_balancer
 
 This repo now owns the container orchestration logic for:
 
 - `moya_squeezer` (manager + workers)
 - `moya_db`
+- `moya_db_balancer`
 
 ## What lives here
 
-- `docker-compose.yml`: multi-container local stack for Moya
 - `scripts/run_cluster.sh`: plain-docker cluster launcher
 - `scripts/stop_cluster.sh`: plain-docker cluster teardown
 - `docs/distributed-app-blueprint.md`: deployment architecture notes
@@ -31,11 +32,13 @@ By default, harness expects these adjacent directories:
 
 - `../moya_squeezer`
 - `../moya_db`
+- `../moya_db_balancer`
 
 Override with env vars when needed:
 
 - `SQUEEZER_REPO`
 - `DB_REPO`
+- `DB_BALANCER_REPO`
 
 ## Quick start (plain Docker)
 
@@ -45,7 +48,22 @@ chmod +x scripts/run_cluster.sh scripts/stop_cluster.sh
 ```
 
 By default, `run_cluster.sh` reads `./harness.config.toml` for cluster shape and squeeze overrides.
-It also streams manager output in the same terminal and stops streaming when the manager prints `[final]`.
+It also streams manager output in the same terminal until the manager process exits.
+
+For explicit test-mode separation, use the dedicated configs:
+
+```sh
+./scripts/run_cluster.sh --config harness.rps.config.toml
+./scripts/run_cluster.sh --config harness.concurrency.config.toml
+```
+
+Convenience wrappers are also available:
+
+```sh
+chmod +x scripts/run_rps.sh scripts/run_concurrency.sh
+./scripts/run_rps.sh
+./scripts/run_concurrency.sh
+```
 
 Tail manager logs:
 
@@ -61,12 +79,17 @@ Stop everything:
 
 Useful overrides:
 
-- `SQUEEZER_IMAGE`, `DB_IMAGE`
+- `SQUEEZER_IMAGE`, `DB_IMAGE`, `DB_BALANCER_IMAGE`
 - `BASE_IMAGE`
 - `NETWORK_NAME`
 - `COOKIE`
 - `CONFIG_PATH` (template path inside squeezer repo; backward-compatible alias)
 - `WORKER_COUNT`, `DB_NODE_COUNT`, `DB_BASE_PORT`
+- `DB_DIRECT_PORT` (default `9090` for direct `moya_db` access)
+- `MANAGER_METRICS_PORT` (default `4100`)
+- `WORKER_METRICS_PORT_BASE` (default `4101`, then increments per worker)
+- `DB_MEMORY` (e.g. `4g`, `8192m`)
+- `SKIP_BUILD=1` (reuse existing local images; skip image builds)
 - `START_REQUESTS_PER_SECOND`, `REQUESTS_PER_SECOND`, `DURATION_SECONDS`, `WARMUP_SECONDS`
 
 ## Harness config file
@@ -113,9 +136,12 @@ Any key under `[squeeze]` is applied to the effective squeezer config, so you ca
 override any setting supported by `moya_squeezer/config/*.toml` (for example `rps_step`).
 
 In `ramp_mode = "concurrency"`, the manager increases active workers over time while
-holding `total_target_rps` constant, so per-worker/connection rate decreases each step.
+holding `total_target_rps` constant by activating additional worker containers (nodes),
+so per-worker-container and per-connection rate decreases each step.
 When concurrency mode is enabled, harness will automatically launch enough worker
 containers to satisfy `max_active_workers` (and at least `initial_active_workers`).
+If `initial_active_workers` is lower than `max_active_workers`, harness starts only the
+initial set and can add additional worker containers during the run as ramp steps occur.
 
 ## Override precedence
 
@@ -140,10 +166,25 @@ Run with 3 db nodes and custom base port:
 ./scripts/run_cluster.sh --db-nodes 3
 ```
 
+Run with an explicit DB container memory cap:
+
+```sh
+DB_MEMORY=8g ./scripts/run_cluster.sh --config harness.concurrency.config.toml
+# or
+./scripts/run_cluster.sh --config harness.concurrency.config.toml --db-memory 8g
+```
+
 Override squeeze start RPS for one run:
 
 ```sh
 ./scripts/run_cluster.sh --start-rps 2200
+```
+
+Run explicitly in RPS mode or concurrency mode via config file:
+
+```sh
+./scripts/run_cluster.sh --config harness.rps.config.toml
+./scripts/run_cluster.sh --config harness.concurrency.config.toml
 ```
 
 See supported options:
@@ -158,17 +199,13 @@ Run detached (do not stream manager report in this terminal):
 ./scripts/run_cluster.sh --no-follow-report
 ```
 
-## Docker Compose usage
+Reuse prebuilt images and skip all docker build steps:
 
 ```sh
-docker compose up --build --abort-on-container-exit
+./scripts/run_cluster.sh --skip-build
+# or
+SKIP_BUILD=1 ./scripts/run_rps.sh
 ```
-
-Compose can also use these env vars:
-
-- `SQUEEZER_REPO`, `DB_REPO`
-- `SQUEEZER_IMAGE`, `DB_IMAGE`
-- `BASE_IMAGE`
 
 ## Notes
 

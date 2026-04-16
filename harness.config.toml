@@ -5,12 +5,20 @@
 # 2) this file
 # 3) environment variables
 # 4) CLI flags
+#
+# Recommended explicit mode configs:
+# - ./harness.rps.config.toml
+# - ./harness.concurrency.config.toml
+#
+# Example:
+#   ./scripts/run_cluster.sh --config harness.rps.config.toml
+#   ./scripts/run_cluster.sh --config harness.concurrency.config.toml
 
 [cluster]
 network_name = "moya_net"
 
 [moya_db]
-node_count = 1
+node_count = 3
 base_port = 9000
 image = "moya_db:latest"
 
@@ -23,17 +31,12 @@ config_effective_path = "config/generated/docker.effective.toml"
 
 [squeeze]
 # Optional runtime overrides written into the effective squeezer config.
+# Keep this file as a neutral/default local profile.
 start_requests_per_second = 1500
-# Ready-to-run example: concurrency ramp with fixed total target RPS.
-ramp_mode = "concurrency"      # "rps" | "concurrency"
-total_target_rps = 15000
-initial_active_workers = 3
-worker_step = 1
-worker_step_interval_seconds = 1
-max_active_workers = 100
+ramp_mode = "rps"      # "rps" | "concurrency"
 
 # Used by classic rps ramp mode (ignored by concurrency mode).
 rps_step = 50
-# requests_per_second = 500
+requests_per_second = 500
 duration_seconds = 10
 # warmup_seconds = 10

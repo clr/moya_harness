@@ -1,0 +1,49 @@
+[manager][warmup] seeding keys for 10s using write-only traffic...
+[manager][sec] rps=2248 errors=0 error_rate=0.0% p50=14.72ms p90=143.62ms p95=181.52ms tick_avg_work=114.7us tick_overruns=35 tick_max_reqs=1
+[manager][sec] rps=2628 errors=0 error_rate=0.0% p50=2.27ms p90=16.55ms p95=26.42ms tick_avg_work=30.3us tick_overruns=1 tick_max_reqs=1
+[manager][sec] rps=2274 errors=0 error_rate=0.0% p50=14.3ms p90=83.13ms p95=106.82ms tick_avg_work=68.6us tick_overruns=15 tick_max_reqs=1
+[manager][sec] rps=2109 errors=0 error_rate=0.0% p50=58.1ms p90=143.86ms p95=187.74ms tick_avg_work=98.2us tick_overruns=30 tick_max_reqs=1
+[manager][sec] rps=1533 errors=0 error_rate=0.0% p50=124.5ms p90=210.07ms p95=248.29ms tick_avg_work=168.2us tick_overruns=36 tick_max_reqs=1
+[manager][sec] rps=1360 errors=0 error_rate=0.0% p50=316.2ms p90=1739.46ms p95=1810.1ms tick_avg_work=292.1us tick_overruns=111 tick_max_reqs=1
+[manager][sec] rps=1697 errors=0 error_rate=0.0% p50=401.02ms p90=895.7ms p95=990.5ms tick_avg_work=142.6us tick_overruns=45 tick_max_reqs=1
+[manager][sec] rps=1632 errors=0 error_rate=0.0% p50=454.79ms p90=1097.84ms p95=1229.67ms tick_avg_work=230.4us tick_overruns=86 tick_max_reqs=1
+[manager][sec] rps=1135 errors=0 error_rate=0.0% p50=798.58ms p90=1490.01ms p95=1803.6ms tick_avg_work=279.7us tick_overruns=55 tick_max_reqs=1
+[manager][warmup] completed. starting measured phase...
+[manager][sec] rps=1409 errors=0 error_rate=0.0% p50=978.32ms p90=2024.3ms p95=2121.52ms tick_avg_work=219.2us tick_overruns=78 tick_max_reqs=1
+[manager][keyspace] acquired 18347
+[manager][sec] rps=1746 errors=10 error_rate=0.57% p50=58.72ms p90=361.69ms p95=385.44ms tick_avg_work=144.0us tick_overruns=35 tick_max_reqs=1
+[manager][sec] rps=1941 errors=15 error_rate=0.77% p50=57.93ms p90=209.99ms p95=420.33ms tick_avg_work=129.8us tick_overruns=36 tick_max_reqs=1
+[manager][sec] rps=2029 errors=18 error_rate=0.89% p50=85.32ms p90=295.96ms p95=541.8ms tick_avg_work=129.9us tick_overruns=42 tick_max_reqs=1
+[manager][sec] rps=1816 errors=32 error_rate=1.76% p50=174.53ms p90=589.18ms p95=751.48ms tick_avg_work=114.7us tick_overruns=28 tick_max_reqs=1
+[manager][sec] rps=1726 errors=27 error_rate=1.56% p50=226.26ms p90=918.63ms p95=1106.63ms tick_avg_work=125.0us tick_overruns=42 tick_max_reqs=1
+[manager][sec] rps=1125 errors=37 error_rate=3.29% p50=683.63ms p90=1802.52ms p95=4111.93ms tick_avg_work=146.5us tick_overruns=46 tick_max_reqs=1
+[manager][sec] rps=1616 errors=69 error_rate=4.27% p50=880.21ms p90=1731.39ms p95=1801.11ms tick_avg_work=166.7us tick_overruns=55 tick_max_reqs=1
+[manager][sec] rps=2295 errors=90 error_rate=3.92% p50=971.8ms p90=1483.21ms p95=1609.71ms tick_avg_work=114.6us tick_overruns=30 tick_max_reqs=1
+[manager][sec] rps=2247 errors=54 error_rate=2.4% p50=921.66ms p90=1441.08ms p95=1737.85ms tick_avg_work=81.8us tick_overruns=14 tick_max_reqs=1
+[manager][sec] rps=2485 errors=76 error_rate=3.06% p50=760.2ms p90=1587.97ms p95=1897.31ms tick_avg_work=103.4us tick_overruns=32 tick_max_reqs=1
+[manager][baseline] p95=1643.80ms
+[manager][sec] rps=1681 errors=53 error_rate=3.15% p50=854.16ms p90=1994.27ms p95=2134.98ms tick_avg_work=156.0us tick_overruns=41 tick_max_reqs=1
+[manager][burn] stop criteria reached (error_rate_exceeded); holding load steady for 10s
+[manager][sec] rps=1877 errors=43 error_rate=2.29% p50=1016.45ms p90=2143.97ms p95=2296.7ms tick_avg_work=141.3us tick_overruns=43 tick_max_reqs=1
+[manager][sec] rps=2514 errors=57 error_rate=2.27% p50=760.25ms p90=2231.25ms p95=2315.53ms tick_avg_work=118.2us tick_overruns=35 tick_max_reqs=1
+[manager][sec] rps=2685 errors=46 error_rate=1.71% p50=680.51ms p90=1899.83ms p95=2048.94ms tick_avg_work=86.6us tick_overruns=15 tick_max_reqs=1
+[manager][sec] rps=2178 errors=30 error_rate=1.38% p50=427.71ms p90=1581.76ms p95=1645.54ms tick_avg_work=97.2us tick_overruns=26 tick_max_reqs=1
+[manager][sec] rps=2115 errors=16 error_rate=0.76% p50=457.94ms p90=1548.4ms p95=1732.7ms tick_avg_work=126.6us tick_overruns=40 tick_max_reqs=1
+[manager][sec] rps=2580 errors=19 error_rate=0.74% p50=433.52ms p90=1711.32ms p95=1829.2ms tick_avg_work=108.7us tick_overruns=26 tick_max_reqs=1
+[manager][sec] rps=2192 errors=14 error_rate=0.64% p50=354.07ms p90=1742.21ms p95=1849.23ms tick_avg_work=118.2us tick_overruns=32 tick_max_reqs=1
+[manager][sec] rps=2380 errors=17 error_rate=0.71% p50=184.16ms p90=2055.35ms p95=4161.75ms tick_avg_work=107.7us tick_overruns=25 tick_max_reqs=1
+[manager][sec] rps=2488 errors=18 error_rate=0.72% p50=130.55ms p90=1818.72ms p95=1995.3ms tick_avg_work=109.1us tick_overruns=32 tick_max_reqs=1
+[manager][sec] rps=2341 errors=13 error_rate=0.56% p50=90.79ms p90=1267.84ms p95=1558.74ms tick_avg_work=65.0us tick_overruns=6 tick_max_reqs=1
+[manager][final] stop_reason=error_rate_exceeded total=44177 errors=754 error_rate=1.71% avg=677.67ms p50=410.9ms p90=1685.3ms p95=1939.4ms
+[manager][workers] workers	concurrency	requests	avg_rps
+[manager][workers] worker10@worker10	25	4380	207.86
+[manager][workers] worker1@worker1	25	4489	212.7
+[manager][workers] worker2@worker2	25	4161	197.19
+[manager][workers] worker3@worker3	25	4417	209.28
+[manager][workers] worker4@worker4	25	4502	213.29
+[manager][workers] worker5@worker5	25	4463	211.48
+[manager][workers] worker6@worker6	25	4432	210.04
+[manager][workers] worker7@worker7	25	4441	210.54
+[manager][workers] worker8@worker8	25	4457	211.34
+[manager][workers] worker9@worker9	25	4366	207.12
+[manager] This squeeze test ran until aggregate_rps=2341 avg_payload_size=1024B concurrent_db_connections=250

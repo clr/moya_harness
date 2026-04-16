@@ -1,0 +1,32 @@
+# Explicit profile for payload squeeze tests.
+
+[cluster]
+network_name = "moya_net"
+
+[moya_db]
+node_count = 3
+base_port = 9090
+image = "moya_db:latest"
+
+[moya_squeezer]
+manager_name = "manager"
+worker_count = 10
+cookie = "squeeze_cookie"
+config_template_path = "config/docker.toml"
+config_effective_path = "config/generated/docker.effective.toml"
+
+[squeeze]
+connections_per_worker = 25
+stop_latency_percentile = 0.95
+latency_breach_consecutive_windows = 5
+worker_tick_ms = 10
+ramp_mode = "payload"
+payload_size = 65536
+payload_step_bytes = 65536
+start_requests_per_second = 1000
+requests_per_second = 500
+rps_step = 0
+step_interval_seconds = 1
+duration_seconds = 60
+warmup_seconds = 10
+worker_inflight_limit = 25
